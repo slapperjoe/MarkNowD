@@ -2,8 +2,11 @@ import { useState, useRef, useEffect } from "react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { save, open } from '@tauri-apps/plugin-dialog';
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
+import { LayoutTemplate, FileCode, Eye } from 'lucide-react';
 import "./App.css";
-import { Editor } from "./Editor";
+import { Editor, EditorRef } from "./Editor";
+import { ContextSidebar } from "./components/ContextSidebar";
+import { Preview } from "./components/Preview";
 
 const appWindow = getCurrentWebviewWindow();
 
@@ -43,14 +46,19 @@ const THEMES: Record<string, { bg: string; menuBg: string; text: string; menuHov
   }
 };
 
+type ViewMode = 'interactive' | 'raw' | 'markdown';
+
 function App() {
   const [filePath, setFilePath] = useState<string | null>(null);
   const [editorContent, setEditorContent] = useState<string>("# MarkNowD\n");
+  const [editorContext, setEditorContext] = useState<string>("Paragraph");
+  const [viewMode, setViewMode] = useState<ViewMode>('interactive');
   const [isDirty, setIsDirty] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
   const [themeName, setThemeName] = useState("Dark");
 
+  const editorRef = useRef<EditorRef>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const themeMenuRef = useRef<HTMLDivElement>(null);
 
@@ -140,16 +148,27 @@ function App() {
     setIsMenuOpen(false);
   };
 
+  const handleAction = (action: string) => {
+    if (editorRef.current) {
+      editorRef.current.executeCommand(action);
+    }
+  };
+
   return (
     <div
       className="h-screen flex flex-col overflow-hidden text-sm transition-colors duration-200"
       style={{ backgroundColor: currentTheme.bg, color: currentTheme.text }}
     >
       {/* Custom Titlebar / Menu Bar */}
-      {/* Custom Titlebar / Menu Bar */}
       <div
         className="h-10 flex items-center justify-between shrink-0 select-none transition-colors duration-200"
-        style={{ backgroundColor: currentTheme.menuBg }}
+        style={{ backgroundColor: currentTheme.menuBg, cursor: 'default' }}
+        onMouseDown={(e) => {
+          // Only drag if the target is the div itself or non-interactive children
+          if (e.target === e.currentTarget || (e.target as Element).classList.contains('flex-1')) {
+            appWindow.startDragging();
+          }
+        }}
       >
 
         {/* Left Side: Menu */}
@@ -160,6 +179,7 @@ function App() {
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className={`px-3 py-1 rounded transition-colors ${currentTheme.menuHover}`}
+              onMouseDown={(e) => e.stopPropagation()}
             >
               File
             </button>
@@ -180,6 +200,7 @@ function App() {
             <button
               onClick={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
               className={`px-3 py-1 rounded transition-colors ${currentTheme.menuHover}`}
+              onMouseDown={(e) => e.stopPropagation()}
             >
               Theme
             </button>
@@ -208,33 +229,86 @@ function App() {
         </div>
 
         {/* Drag Region Spacer */}
-        <div data-tauri-drag-region className="flex-1 h-full"></div>
+        <div
+          className="flex-1 h-full"
+          onMouseDown={() => appWindow.startDragging()}
+        ></div>
+
+        {/* View Switcher Controls */}
+        <div className="flex items-center gap-1 z-10 mr-4">
+          <button
+            onClick={() => setViewMode('interactive')}
+            className={`p-1.5 rounded transition-colors ${viewMode === 'interactive' ? 'bg-black/10 text-blue-400' : 'opacity-50 hover:opacity-100'}`}
+            title="Interactive Mode"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <LayoutTemplate size={14} />
+          </button>
+          <button
+            onClick={() => setViewMode('markdown')}
+            className={`p-1.5 rounded transition-colors ${viewMode === 'markdown' ? 'bg-black/10 text-blue-400' : 'opacity-50 hover:opacity-100'}`}
+            title="Preview Mode"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <Eye size={14} />
+          </button>
+          <button
+            onClick={() => setViewMode('raw')}
+            className={`p-1.5 rounded transition-colors ${viewMode === 'raw' ? 'bg-black/10 text-blue-400' : 'opacity-50 hover:opacity-100'}`}
+            title="Raw Mode"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <FileCode size={14} />
+          </button>
+        </div>
 
         {/* Right Side: Window Controls */}
         <div className="flex z-10" style={{ backgroundColor: currentTheme.menuBg }}>
           <div
             className={`inline-flex justify-center items-center w-12 h-10 cursor-pointer transition-colors ${currentTheme.menuHover}`}
             onClick={() => appWindow.minimize()}
+            onMouseDown={(e) => e.stopPropagation()}
           >
             <svg width="10" height="1" viewBox="0 0 10 1" fill="currentColor"><rect width="10" height="1"></rect></svg>
           </div>
           <div
             className={`inline-flex justify-center items-center w-12 h-10 cursor-pointer transition-colors ${currentTheme.menuHover}`}
-            onClick={() => appWindow.toggleMaximize()}
+            onClick={() => appWindow.toggleMaximize().catch(e => alert("Max Err: " + e))}
+            onMouseDown={(e) => e.stopPropagation()}
           >
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1"><rect x="0.5" y="0.5" width="9" height="9"></rect></svg>
           </div>
           <div
             className="inline-flex justify-center items-center w-12 h-10 hover:bg-red-600 hover:text-white cursor-pointer transition-colors"
             onClick={() => appWindow.close()}
+            onMouseDown={(e) => e.stopPropagation()}
           >
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2"><path d="M1 1L9 9M9 1L1 9"></path></svg>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden relative border-t" style={{ borderColor: currentTheme.menuBorder }}>
-        <Editor doc={editorContent} onChange={handleEditorChange} themeName={themeName} />
+      <div className="flex-1 overflow-hidden relative border-t flex flex-row" style={{ borderColor: currentTheme.menuBorder }}>
+        {/* Sidebar: Only show in 'interactive' mode */}
+        {viewMode === 'interactive' && (
+          <ContextSidebar context={editorContext} themeStyle={currentTheme} onAction={handleAction} />
+        )}
+
+        <div className="flex-1 h-full relative">
+          {viewMode === 'markdown' ? (
+            <Preview content={editorContent} themeStyle={currentTheme} />
+          ) : (
+            <div className="h-full w-full">
+              <Editor
+                ref={editorRef}
+                doc={editorContent}
+                onChange={handleEditorChange}
+                onContextChange={setEditorContext}
+                themeName={themeName}
+              />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
