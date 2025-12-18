@@ -64,3 +64,6 @@
 ### Troubleshooting
 -   **WebView2**: On Windows, ensure the WebView2 runtime is installed if the app fails to launch.
 -   **Build Errors**: If Rust compilation fails, try `cargo clean` in `src-tauri/` or check `rustc --version`.
+
+## Conversation History
+The `.agent/conversations/` directory contains records of past interactions and decisions. Agents should refer to these files for historical context on features and architectural choices.
