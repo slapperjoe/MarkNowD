@@ -36,3 +36,31 @@
 - `npm run dev`: Start the frontend development server (Vite).
 - `npm run tauri dev`: Start the application in a Tauri window (simulating the desktop app).
 - `npm run build`: Build the frontend and backend for production.
+
+## Getting Started for Agents
+
+### Prerequisites
+- **Node.js**: Required for the frontend environment.
+- **Rust**: Required for Tauri. Ensure `rustc` and `cargo` are available (typically via `rustup`).
+
+### Setup
+1.  **Install Dependencies**:
+    ```bash
+    npm install
+    ```
+
+### Running the Application
+-   **Browser Mode (Frontend Only)**:
+    Use this for quick UI iteration without Tauri APIs.
+    ```bash
+    npm run dev
+    ```
+-   **Desktop Mode (Tauri)**:
+    Use this to test the full application with backend integration.
+    ```bash
+    npm run tauri dev
+    ```
+
+### Troubleshooting
+-   **WebView2**: On Windows, ensure the WebView2 runtime is installed if the app fails to launch.
+-   **Build Errors**: If Rust compilation fails, try `cargo clean` in `src-tauri/` or check `rustc --version`.
