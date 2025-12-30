@@ -1,0 +1,37 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "dev",
+            "type": "npm",
+            "script": "dev",
+            "group": "test",
+            "problemMatcher": [],
+            "detail": "Start the frontend development server"
+        },
+        {
+            "label": "tauri dev",
+            "type": "npm",
+            "script": "tauri",
+            "group": "test",
+            "problemMatcher": [],
+            "detail": "Start the app in Tauri dev mode"
+        },
+        {
+            "label": "build",
+            "type": "npm",
+            "script": "build",
+            "group": "build",
+            "problemMatcher": [],
+            "detail": "Build the frontend"
+        },
+        {
+            "label": "tauri build",
+            "type": "shell",
+            "command": "npm run tauri build",
+            "group": "build",
+            "problemMatcher": [],
+            "detail": "Build the application for production"
+        }
+    ]
+}
