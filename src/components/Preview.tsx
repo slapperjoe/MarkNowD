@@ -1,27 +1,28 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { convertFileSrc } from '@tauri-apps/api/core';
 
 interface PreviewProps {
-    content: string;
-    themeStyle: {
-        bg: string;
-        text: string;
-        menuHover: string;
-        menuBorder: string;
-    };
+  content: string;
+  themeStyle: {
+    bg: string;
+    text: string;
+    menuHover: string;
+    menuBorder: string;
+  };
 }
 
 export const Preview: React.FC<PreviewProps> = ({ content, themeStyle }) => {
-    return (
-        <div
-            className="h-full w-full overflow-y-auto p-8 prose prose-sm max-w-none"
-            style={{
-                backgroundColor: themeStyle.bg,
-                color: themeStyle.text
-            }}
-        >
-            <style>{`
+  return (
+    <div
+      className="h-full w-full overflow-y-auto p-8 prose prose-sm max-w-none"
+      style={{
+        backgroundColor: themeStyle.bg,
+        color: themeStyle.text
+      }}
+    >
+      <style>{`
         .prose {
           color: inherit;
         }
@@ -55,9 +56,20 @@ export const Preview: React.FC<PreviewProps> = ({ content, themeStyle }) => {
           padding: 0.5em;
         }
       `}</style>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {content}
-            </ReactMarkdown>
-        </div>
-    );
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          img: (props) => {
+            let src = props.src || "";
+            if (src && !src.startsWith("http") && !src.startsWith("data:")) {
+              src = convertFileSrc(src);
+            }
+            return <img {...props} src={src} />;
+          }
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
 };

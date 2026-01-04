@@ -26,12 +26,14 @@
     display: inline-block;
     margin-right: 4px;
     font-weight: bold;
-    color: #8da6ce;
+    color: currentColor;
     width: 1em;
     text-align: center;
 }
 
-/* Images */
+/* Images are rendered via widgets in some CM plugins, but if we just insert text, this might not apply unless we have an image widget plugin. 
+   However, for the preview, standard CSS applies. 
+*/
 .cm-image {
     max-width: 100%;
     max-height: 400px;
@@ -85,7 +87,7 @@
 .cm-header-rendered-1 {
     font-size: 2.0em;
     font-weight: bold;
-    color: #ffffff;
+    color: currentColor;
     display: inline-block;
     padding-bottom: 0.2em;
     border-bottom: 1px solid #333;
@@ -95,27 +97,27 @@
 .cm-header-rendered-2 {
     font-size: 1.6em;
     font-weight: bold;
-    color: #eeeeee;
+    color: currentColor;
 }
 
 .cm-header-rendered-3 {
     font-size: 1.3em;
     font-weight: bold;
-    color: #e0e0e0;
+    color: currentColor;
 }
 
 .cm-header-rendered-4 {
     font-size: 1.1em;
     font-weight: bold;
-    color: #dddddd;
+    color: currentColor;
 }
 
 .cm-strong {
-    color: #fff;
+    color: currentColor;
     font-weight: 700;
 }
 
 .cm-em {
     font-style: italic;
-    color: #ddd;
+    color: currentColor;
 }

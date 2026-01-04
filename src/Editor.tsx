@@ -16,6 +16,7 @@ import { syntaxTree } from "@codemirror/language";
 
 export interface EditorRef {
     executeCommand: (cmd: string) => void;
+    insertText: (text: string) => void;
 }
 
 interface EditorProps {
@@ -31,6 +32,12 @@ export const Editor = forwardRef<EditorRef, EditorProps>(({ doc, onChange, onCon
 
     // Expose commands to parent
     useImperativeHandle(ref, () => ({
+        insertText: (text: string) => {
+            const view = viewRef.current;
+            if (!view) return;
+            view.focus();
+            insertTextAtCursor(view, text);
+        },
         executeCommand: (cmd: string) => {
             const view = viewRef.current;
             if (!view) return;
@@ -39,8 +46,8 @@ export const Editor = forwardRef<EditorRef, EditorProps>(({ doc, onChange, onCon
 
             switch (cmd) {
                 case "Bold":
-                    // Basic implementation: wrap selection or insert **text**
-                    wrapSelection(view, "**");
+                    // Smart implementation
+                    smartToggle(view, "**");
                     break;
                 case "Italic":
                     wrapSelection(view, "*");
@@ -71,6 +78,9 @@ export const Editor = forwardRef<EditorRef, EditorProps>(({ doc, onChange, onCon
                     // Not implemented deeply for string manipulation
                     insertTextAtCursor(view, " | Col");
                     break;
+                case "Make List":
+                    toggleList(view);
+                    break;
                 default:
                     console.log("Unknown command:", cmd);
             }
@@ -86,6 +96,65 @@ export const Editor = forwardRef<EditorRef, EditorProps>(({ doc, onChange, onCon
         });
     };
 
+    // Smart Bold / Selection Wrapper
+    // If selection -> wrap
+    // If empty -> check word -> wrap word
+    // If empty & no word -> wrap line
+    const smartToggle = (view: EditorView, wrapper: string) => {
+        const { state, dispatch } = view;
+        const { from, empty } = state.selection.main;
+
+        if (!empty) {
+            // Standard wrap
+            wrapSelection(view, wrapper);
+            return;
+        }
+
+        const line = state.doc.lineAt(from);
+        const lineText = line.text;
+
+        // Check if cursor is inside a word (alphanumeric check approx)
+        // We can use the wordAt logic or regex.
+        // Simple regex approach: capture word at pos
+        const relativePos = from - line.from;
+
+        // Find word boundaries around relativePos
+        // We look back until space/boundary and forward until space/boundary
+        let start = relativePos;
+        let end = relativePos;
+
+        // Naive word boundary detection
+        while (start > 0 && /\S/.test(lineText[start - 1])) {
+            start--;
+        }
+        while (end < lineText.length && /\S/.test(lineText[end])) {
+            end++;
+        }
+
+        const word = lineText.slice(start, end);
+
+        // Criteria for "being in a word": non-empty and at least one char is not just punctuation if we want to be strict, but \S includes punctuation.
+        // User asked: "If we are on a space area in a line ... entire line is being bolded"
+        // "if we are inside a word ... only that word is being bolded"
+
+        // If cursor was at a space, start === end (approx, or logic above stopped immediately).
+        if (start === end) {
+            // Space area -> Bold Line
+            // Wrap entire line
+            const text = lineText;
+            const newText = `${wrapper}${text}${wrapper}`;
+            dispatch({
+                changes: { from: line.from, to: line.to, insert: newText }
+            });
+        } else {
+            // Inside word -> Bold Word
+            const newText = `${wrapper}${word}${wrapper}`;
+            dispatch({
+                changes: { from: line.from + start, to: line.from + end, insert: newText }
+            });
+        }
+    };
+
     const wrapSelection = (view: EditorView, wrapper: string) => {
         const { from, to } = view.state.selection.main;
         const text = view.state.sliceDoc(from, to);
@@ -96,31 +165,57 @@ export const Editor = forwardRef<EditorRef, EditorProps>(({ doc, onChange, onCon
         });
     };
 
+    const toggleList = (view: EditorView) => {
+        const { state, dispatch } = view;
+        const line = state.doc.lineAt(state.selection.main.head);
+        const lineText = line.text;
+
+        // Check if already a list
+        if (lineText.trim().startsWith("- ")) {
+            // Remove it
+            const match = lineText.match(/^(\s*-\s)/);
+            if (match) {
+                dispatch({
+                    changes: { from: line.from, to: line.from + match[0].length, insert: "" },
+                    selection: { anchor: line.from }
+                });
+            }
+        } else {
+            // Add it - cursor goes after the "- "
+            const prefix = "- ";
+            dispatch({
+                changes: { from: line.from, to: line.from, insert: prefix },
+                selection: { anchor: line.from + prefix.length }
+            });
+        }
+    };
+
     const toggleHeader = (view: EditorView, level: number) => {
         const { state, dispatch } = view;
         const line = state.doc.lineAt(state.selection.main.head);
         const lineText = line.text;
         const hash = "#".repeat(level) + " ";
 
-        let shouldAdd = true;
-        // Basic check if already header (naive)
+        // Check if already a header
         if (lineText.startsWith("#")) {
-            // If different level or same, maybe strip? simple: just strip all headers first
             const match = lineText.match(/^(#+ )/);
             if (match) {
+                // Remove existing header
                 dispatch({
-                    changes: { from: line.from, to: line.from + match[0].length, insert: "" }
+                    changes: { from: line.from, to: line.from + match[0].length, insert: "" },
+                    selection: { anchor: line.from }
                 });
-                shouldAdd = (match[0].trim().length !== level); // If it was H1 and we clicked H1, removing it effectively toggles off. If H1 and we click H2, we remove H1 and add H2.
-                if (!shouldAdd) return;
+                // If same level, just toggle off (return)
+                if (match[0].trim().length === level) return;
+                // Otherwise, add new header level below
             }
         }
 
-        if (shouldAdd) {
-            dispatch({
-                changes: { from: line.from, to: line.from, insert: hash }
-            });
-        }
+        // Add header - cursor goes after the "# "
+        dispatch({
+            changes: { from: line.from, to: line.from, insert: hash },
+            selection: { anchor: line.from + hash.length }
+        });
     };
 
 
