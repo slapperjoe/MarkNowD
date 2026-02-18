@@ -2,9 +2,9 @@ import React from 'react';
 import {
     Bold, Italic,
     Heading1, Heading2, Heading3,
-    Table, Plus, Trash,
+    Table, Plus, Trash, List,
     Indent, Outdent, CheckSquare,
-    Quote, Type
+    Quote, Type, Image as ImageIcon
 } from 'lucide-react';
 
 interface ContextSidebarProps {
@@ -60,7 +60,10 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({ context, themeSt
         items = [
             { icon: <Bold size={iconSize} />, label: "Bold", action: "Bold" },
             { icon: <Italic size={iconSize} />, label: "Italic", action: "Italic" },
+            { icon: <List size={iconSize} />, label: "List", action: "Make List" },
+            { icon: <Heading1 size={iconSize} />, label: "Header", action: "H1" }, // Reusing H1
             { icon: <Table size={iconSize} />, label: "Table", action: "Add Row" }, // Basic table insert
+            { icon: <ImageIcon size={iconSize} />, label: "Image", action: "insert-image" },
         ];
     }
 

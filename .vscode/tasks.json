@@ -11,8 +11,8 @@
         },
         {
             "label": "tauri dev",
-            "type": "npm",
-            "script": "tauri",
+            "type": "shell",
+            "command": "npm run tauri dev",
             "group": "test",
             "problemMatcher": [],
             "detail": "Start the app in Tauri dev mode"

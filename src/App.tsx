@@ -234,9 +234,38 @@ function App() {
     setIsMenuOpen(false);
   };
 
+  const handleInsertImage = async () => {
+    try {
+      const selected = await open({
+        multiple: false,
+        filters: [{
+          name: 'Images',
+          extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg']
+        }]
+      });
+
+      if (selected && editorRef.current) {
+        const path = selected as string;
+        // Tauri 2.0 asset protocol or just file path?
+        // Usually file path works with the `fs` scope, but for <img> tags we might need `asset://` or `convertFileSrc`.
+        // For standard markdown editors, usually just the path is inserted or a relative path.
+        // Let's insert the absolute path for now.
+        const markdownImage = `![Image](${path})`;
+        editorRef.current.insertText(markdownImage);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to insert image");
+    }
+  };
+
   const handleAction = (action: string) => {
     if (editorRef.current) {
-      editorRef.current.executeCommand(action);
+      if (action === 'insert-image') {
+        handleInsertImage();
+      } else {
+        editorRef.current.executeCommand(action);
+      }
     }
   };
 
@@ -256,9 +285,35 @@ function App() {
           }
         }}
       >
+        {/* Window Controls (Left for macOS) */}
+        {navigator.userAgent.includes('Mac') && (
+          <div className="flex z-10 pl-2 gap-2" style={{ backgroundColor: currentTheme.menuBg }}>
+            <div
+              className={`inline-flex justify-center items-center w-3 h-3 rounded-full bg-red-500 text-transparent hover:text-black mt-3.5 mb-3.5 cursor-pointer transition-colors border border-red-600`}
+              onClick={() => appWindow.close()}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <svg width="6" height="6" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 1L9 9M9 1L1 9"></path></svg>
+            </div>
+            <div
+              className={`inline-flex justify-center items-center w-3 h-3 rounded-full bg-yellow-500 text-transparent hover:text-black mt-3.5 mb-3.5 cursor-pointer transition-colors border border-yellow-600`}
+              onClick={() => appWindow.minimize()}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <svg width="6" height="1" viewBox="0 0 10 1" fill="currentColor"><rect width="10" height="1"></rect></svg>
+            </div>
+            <div
+              className={`inline-flex justify-center items-center w-3 h-3 rounded-full bg-green-500 text-transparent hover:text-black mt-3.5 mb-3.5 cursor-pointer transition-colors border border-green-600`}
+              onClick={() => appWindow.toggleMaximize().catch(e => alert("Max Err: " + e))}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <svg width="6" height="6" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 5L5 9L9 1"></path></svg>
+            </div>
+          </div>
+        )}
 
         {/* Left Side: Menu */}
-        <div className="flex items-center gap-2 pl-4 z-10">
+        <div className={`flex items-center gap-2 ${navigator.userAgent.includes('Mac') ? 'pl-4' : 'pl-4'} z-10`}>
 
           {/* File Menu */}
           <div className="relative" ref={menuRef}>
@@ -357,30 +412,32 @@ function App() {
           </button>
         </div>
 
-        {/* Right Side: Window Controls */}
-        <div className="flex z-10" style={{ backgroundColor: currentTheme.menuBg }}>
-          <div
-            className={`inline-flex justify-center items-center w-12 h-10 cursor-pointer transition-colors ${currentTheme.menuHover}`}
-            onClick={() => appWindow.minimize()}
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <svg width="10" height="1" viewBox="0 0 10 1" fill="currentColor"><rect width="10" height="1"></rect></svg>
+        {/* Window Controls (Right for non-macOS) */}
+        {!navigator.userAgent.includes('Mac') && (
+          <div className="flex z-10" style={{ backgroundColor: currentTheme.menuBg }}>
+            <div
+              className={`inline-flex justify-center items-center w-12 h-10 cursor-pointer transition-colors ${currentTheme.menuHover}`}
+              onClick={() => appWindow.minimize()}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <svg width="10" height="1" viewBox="0 0 10 1" fill="currentColor"><rect width="10" height="1"></rect></svg>
+            </div>
+            <div
+              className={`inline-flex justify-center items-center w-12 h-10 cursor-pointer transition-colors ${currentTheme.menuHover}`}
+              onClick={() => appWindow.toggleMaximize().catch(e => alert("Max Err: " + e))}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1"><rect x="0.5" y="0.5" width="9" height="9"></rect></svg>
+            </div>
+            <div
+              className="inline-flex justify-center items-center w-12 h-10 hover:bg-red-600 hover:text-white cursor-pointer transition-colors"
+              onClick={() => appWindow.close()}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2"><path d="M1 1L9 9M9 1L1 9"></path></svg>
+            </div>
           </div>
-          <div
-            className={`inline-flex justify-center items-center w-12 h-10 cursor-pointer transition-colors ${currentTheme.menuHover}`}
-            onClick={() => appWindow.toggleMaximize().catch(e => alert("Max Err: " + e))}
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1"><rect x="0.5" y="0.5" width="9" height="9"></rect></svg>
-          </div>
-          <div
-            className="inline-flex justify-center items-center w-12 h-10 hover:bg-red-600 hover:text-white cursor-pointer transition-colors"
-            onClick={() => appWindow.close()}
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2"><path d="M1 1L9 9M9 1L1 9"></path></svg>
-          </div>
-        </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-hidden relative border-t flex flex-row" style={{ borderColor: currentTheme.menuBorder }}>
