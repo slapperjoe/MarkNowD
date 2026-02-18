@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "node bump-version.js && tauri"
+    "tauri": "node bump-version.js && tauri",
+    "tauri:build": "node bump-version.js && tauri build",
+    "installer": "npm run build && npm run tauri:build"
   },
   "dependencies": {
     "@babel/runtime": "^7.28.4",

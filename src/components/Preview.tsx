@@ -11,25 +11,9 @@ interface PreviewProps {
     menuHover: string;
     menuBorder: string;
   };
-  content: string;
-  themeStyle: {
-    bg: string;
-    text: string;
-    menuHover: string;
-    menuBorder: string;
-  };
 }
 
 export const Preview: React.FC<PreviewProps> = ({ content, themeStyle }) => {
-  return (
-    <div
-      className="h-full w-full overflow-y-auto p-8 prose prose-sm max-w-none"
-      style={{
-        backgroundColor: themeStyle.bg,
-        color: themeStyle.text
-      }}
-    >
-      <style>{`
   return (
     <div
       className="h-full w-full overflow-y-auto p-8 prose prose-sm max-w-none"
