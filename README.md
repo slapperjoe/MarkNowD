@@ -7,12 +7,14 @@ MarkNowD is a modern, feature-rich Markdown editor built with Tauri, React, and 
 - **Cross-Platform**: Built with Tauri for a lightweight, native performance on Windows, macOS, and Linux.
 - **Multiple Themes**: Choose from Dark, Light, Solarized Light, and Solarized Dark themes to suit your preference.
 - **View Modes**:
-  - **Interactive**: Split view with the editor and a context-aware sidebar.
-  - **Markdown**: Full-width preview mode to see your rendered document.
-  - **Raw**: Distraction-free code-only view.
+  - **Interactive**: Split view with the Hybrid Editor and a context-aware sidebar for quick formatting actions.
+  - **Markdown**: Full-width rendered preview mode to see your document.
+  - **Raw**: Distraction-free code-only view for focused editing.
+- **Hybrid Editor**: A live-rendering editor that displays styled markdown (headers, lists, images, tables) inline while you type.
+- **Context-Aware Sidebar**: Dynamic formatting toolbar that adapts to your cursor context (text, headers, lists, tables, quotes).
 - **File Operations**: Seamlessly create, open, save, and manage your Markdown files.
 - **Real-time Preview**: See your changes instantly as you type.
-- **Custom UI**: A completely custom titlebar and window controls for a unified verification.
+- **Custom UI**: A completely custom titlebar and window controls for a unified experience.
 
 ## Tech Stack
 

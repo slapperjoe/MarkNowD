@@ -1,13 +1,13 @@
 {
   "name": "marknowd",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.7",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "node bump-version.js && tauri"
   },
   "dependencies": {
     "@babel/runtime": "^7.28.4",

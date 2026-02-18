@@ -1,14 +1,22 @@
 import { useState, useRef, useEffect } from "react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 import { save, open } from '@tauri-apps/plugin-dialog';
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
-import { LayoutTemplate, FileCode, Eye } from 'lucide-react';
+import { LayoutTemplate, FileCode, Eye, WrapText } from 'lucide-react';
 import "./App.css";
 import { Editor, EditorRef } from "./Editor";
 import { ContextSidebar } from "./components/ContextSidebar";
 import { Preview } from "./components/Preview";
 
 const appWindow = getCurrentWebviewWindow();
+
+// ... (Theme Definitions omitted for brevity in search, but needed for file content flow if I replaced everything, but I am targeting specific block. Wait, I should target Imports specially if they are far apart)
+
+// Actually, I can't replace non-contiguous blocks with replace_file_content.
+// I will use multi_replace_file_content.
+
 
 // Theme Definitions for the UI (Outside the editor)
 const THEMES: Record<string, { bg: string; menuBg: string; text: string; menuHover: string; menuBorder: string; menuDropdownBg: string }> = {
@@ -52,15 +60,41 @@ function App() {
   const [filePath, setFilePath] = useState<string | null>(null);
   const [editorContent, setEditorContent] = useState<string>("# MarkNowD\n");
   const [editorContext, setEditorContext] = useState<string>("Paragraph");
-  const [viewMode, setViewMode] = useState<ViewMode>('interactive');
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    return (localStorage.getItem('viewMode') as ViewMode) || 'interactive';
+  });
+  const [wordWrap, setWordWrap] = useState<boolean>(() => {
+    return localStorage.getItem('wordWrap') !== 'false'; // Default true
+  });
   const [isDirty, setIsDirty] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
-  const [themeName, setThemeName] = useState("Dark");
+  const [themeName, setThemeName] = useState(() => {
+    return localStorage.getItem('theme') || "Dark";
+  });
 
   const editorRef = useRef<EditorRef>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const themeMenuRef = useRef<HTMLDivElement>(null);
+
+  // Persistence Effects
+  useEffect(() => {
+    localStorage.setItem('theme', themeName);
+  }, [themeName]);
+
+  useEffect(() => {
+    localStorage.setItem('viewMode', viewMode);
+  }, [viewMode]);
+
+  useEffect(() => {
+    localStorage.setItem('wordWrap', String(wordWrap));
+  }, [wordWrap]);
+
+  useEffect(() => {
+    if (filePath) {
+      localStorage.setItem('lastFilePath', filePath);
+    }
+  }, [filePath]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -74,6 +108,57 @@ function App() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // Listen for file-open events from file association (e.g., double-clicking a .md file)
+  useEffect(() => {
+    // Check for initial file from launch arguments (fix for race condition)
+    invoke<string | null>('get_launch_file').then(async (path) => {
+      // Priority 1: Launch File (Argument)
+      if (path) {
+        try {
+          const content = await readTextFile(path);
+          setEditorContent(content);
+          setFilePath(path);
+          setIsDirty(false);
+          return; // Done
+        } catch (err) {
+          console.error("Failed to open launch file:", err);
+          alert("Error opening file: " + JSON.stringify(err));
+        }
+      }
+
+      // Priority 2: Last Opened File from Persistence
+      const lastFile = localStorage.getItem('lastFilePath');
+      if (lastFile) {
+        try {
+          const content = await readTextFile(lastFile);
+          setEditorContent(content);
+          setFilePath(lastFile);
+          setIsDirty(false);
+        } catch (err) {
+          console.log("Could not load last file (maybe deleted):", err);
+          // Optionally clear it? localStorage.removeItem('lastFilePath');
+        }
+      }
+    });
+
+    const unlisten = listen<string>("file-open", async (event) => {
+      try {
+        const path = event.payload;
+        const content = await readTextFile(path);
+        setEditorContent(content);
+        setFilePath(path);
+        setIsDirty(false);
+      } catch (err) {
+        console.error("Failed to open file from association:", err);
+        alert("Error opening file event: " + JSON.stringify(err));
+      }
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
     };
   }, []);
 
@@ -91,6 +176,7 @@ function App() {
     }
     setEditorContent("# MarkNowD\n");
     setFilePath(null);
+    localStorage.removeItem('lastFilePath'); // Clear last file on new
     setIsDirty(false);
     setIsMenuOpen(false);
   };
@@ -177,7 +263,7 @@ function App() {
           {/* File Menu */}
           <div className="relative" ref={menuRef}>
             <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              onClick={() => { setIsMenuOpen(!isMenuOpen); setIsThemeMenuOpen(false); }}
               className={`px-3 py-1 rounded transition-colors ${currentTheme.menuHover}`}
               onMouseDown={(e) => e.stopPropagation()}
             >
@@ -198,7 +284,7 @@ function App() {
           {/* Theme Menu */}
           <div className="relative" ref={themeMenuRef}>
             <button
-              onClick={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
+              onClick={() => { setIsThemeMenuOpen(!isThemeMenuOpen); setIsMenuOpen(false); }}
               className={`px-3 py-1 rounded transition-colors ${currentTheme.menuHover}`}
               onMouseDown={(e) => e.stopPropagation()}
             >
@@ -236,6 +322,15 @@ function App() {
 
         {/* View Switcher Controls */}
         <div className="flex items-center gap-1 z-10 mr-4">
+          <button
+            onClick={() => setWordWrap(!wordWrap)}
+            className={`p-1.5 rounded transition-colors ${wordWrap ? 'bg-black/10 text-blue-400' : 'opacity-50 hover:opacity-100'}`}
+            title="Toggle Word Wrap"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <WrapText size={14} />
+          </button>
+          <div className="w-px h-4 bg-gray-500/20 mx-1"></div>
           <button
             onClick={() => setViewMode('interactive')}
             className={`p-1.5 rounded transition-colors ${viewMode === 'interactive' ? 'bg-black/10 text-blue-400' : 'opacity-50 hover:opacity-100'}`}
@@ -305,6 +400,9 @@ function App() {
                 onChange={handleEditorChange}
                 onContextChange={setEditorContext}
                 themeName={themeName}
+                filePath={filePath}
+                viewMode={viewMode === 'interactive' ? 'interactive' : 'raw'}
+                wordWrap={wordWrap}
               />
             </div>
           )}

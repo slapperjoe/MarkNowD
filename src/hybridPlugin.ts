@@ -1,6 +1,12 @@
 import { EditorView, Decoration, DecorationSet, ViewPlugin, ViewUpdate, WidgetType } from "@codemirror/view";
-import { RangeSetBuilder } from "@codemirror/state";
+import { RangeSetBuilder, Facet } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
+import { convertFileSrc } from "@tauri-apps/api/core";
+
+// Facet to pass the base directory for resolving relative image paths
+export const baseDirFacet = Facet.define<string, string>({
+    combine: values => values[0] || ""
+});
 
 // --- Widgets ---
 
@@ -30,17 +36,29 @@ class HRWidget extends WidgetType {
 }
 
 class ImageWidget extends WidgetType {
-    constructor(readonly url: string, readonly alt: string) {
+    constructor(readonly url: string, readonly alt: string, readonly baseDir: string) {
         super();
     }
 
     eq(other: ImageWidget) {
-        return other.url === this.url && other.alt === this.alt;
+        return other.url === this.url && other.alt === this.alt && other.baseDir === this.baseDir;
     }
 
     toDOM() {
         const img = document.createElement("img");
-        img.src = this.url;
+
+        // Check if URL is absolute (http/https/data) or relative
+        let resolvedUrl = this.url;
+        if (this.baseDir && !this.url.match(/^(https?:|data:|file:|\/)/i)) {
+            // It's a relative path - resolve it against the base directory
+            const absolutePath = this.baseDir.replace(/\\/g, '/') + '/' + this.url;
+            resolvedUrl = convertFileSrc(absolutePath);
+        } else if (this.url.startsWith('/') || this.url.match(/^[a-zA-Z]:/)) {
+            // Absolute local path
+            resolvedUrl = convertFileSrc(this.url);
+        }
+
+        img.src = resolvedUrl;
         img.alt = this.alt;
         img.className = "cm-image";
         img.title = this.alt;
@@ -202,10 +220,11 @@ function hybridDecorations(view: EditorView) {
                     if (match) {
                         const alt = match[1];
                         const url = match[2];
+                        const baseDir = view.state.facet(baseDirFacet);
                         specs.push({
                             from: node.from,
                             to: node.to,
-                            deco: Decoration.replace({ widget: new ImageWidget(url, alt) })
+                            deco: Decoration.replace({ widget: new ImageWidget(url, alt, baseDir) })
                         });
                         return false;
                     }

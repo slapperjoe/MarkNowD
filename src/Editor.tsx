@@ -7,7 +7,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { solarizedLight, solarizedDark } from "@uiw/codemirror-theme-solarized";
-import { hybridPlugin } from "./hybridPlugin";
+import { hybridPlugin, baseDirFacet } from "./hybridPlugin";
 
 // Basic Light Theme
 const lightTheme = EditorView.theme({}, { dark: false });
@@ -23,9 +23,12 @@ interface EditorProps {
     onChange?: (doc: string) => void;
     onContextChange?: (context: string) => void;
     themeName: string;
+    viewMode: 'interactive' | 'raw';
+    filePath?: string | null;
+    wordWrap: boolean;
 }
 
-export const Editor = forwardRef<EditorRef, EditorProps>(({ doc, onChange, onContextChange, themeName }, ref) => {
+export const Editor = forwardRef<EditorRef, EditorProps>(({ doc, onChange, onContextChange, themeName, viewMode, filePath, wordWrap }, ref) => {
     const editorRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<EditorView | null>(null);
 
@@ -127,6 +130,17 @@ export const Editor = forwardRef<EditorRef, EditorProps>(({ doc, onChange, onCon
     // Create a compartment for the theme. 
     // We use useMemo to keep the same instance across renders.
     const themeCompartment = useMemo(() => new Compartment(), []);
+    const baseDirCompartment = useMemo(() => new Compartment(), []);
+    const pluginCompartment = useMemo(() => new Compartment(), []);
+    const lineWrappingCompartment = useMemo(() => new Compartment(), []);
+
+    // Helper to extract directory from file path
+    const getBaseDir = (path: string | null | undefined): string => {
+        if (!path) return "";
+        // Handle both Windows and Unix paths
+        const lastSep = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+        return lastSep > 0 ? path.substring(0, lastSep) : "";
+    };
 
     // Effect to update the view when the `doc` prop changes externally
     useEffect(() => {
@@ -156,7 +170,9 @@ export const Editor = forwardRef<EditorRef, EditorProps>(({ doc, onChange, onCon
                 markdown({ codeLanguages: languages }),
                 highlightActiveLine(),
                 themeCompartment.of(initialTheme),
-                hybridPlugin,
+                baseDirCompartment.of(baseDirFacet.of(getBaseDir(filePath))),
+                pluginCompartment.of(viewMode === 'interactive' ? hybridPlugin : []),
+                lineWrappingCompartment.of(wordWrap ? EditorView.lineWrapping : []),
                 EditorView.updateListener.of((update) => {
                     if (update.docChanged && onChange) {
                         onChange(update.state.doc.toString());
@@ -203,5 +219,34 @@ export const Editor = forwardRef<EditorRef, EditorProps>(({ doc, onChange, onCon
         }
     }, [themeName, themeCompartment]);
 
-    return <div ref={editorRef} className="h-full w-full text-left bg-transparent" />;
+    // Dynamic baseDir update when filePath changes
+    useEffect(() => {
+        if (viewRef.current) {
+            viewRef.current.dispatch({
+                effects: baseDirCompartment.reconfigure(baseDirFacet.of(getBaseDir(filePath)))
+            });
+        }
+    }, [filePath, baseDirCompartment]);
+
+    // Dynamic Plugin Update based on ViewMode
+    useEffect(() => {
+        if (viewRef.current) {
+            viewRef.current.dispatch({
+                effects: pluginCompartment.reconfigure(viewMode === 'interactive' ? hybridPlugin : [])
+            });
+        }
+    }, [viewMode, pluginCompartment]);
+
+    // Dynamic Word Wrap Update
+    useEffect(() => {
+        if (viewRef.current) {
+            viewRef.current.dispatch({
+                effects: lineWrappingCompartment.reconfigure(wordWrap ? EditorView.lineWrapping : [])
+            });
+        }
+    }, [wordWrap, lineWrappingCompartment]);
+
+    const themeClass = `theme-${themeName.toLowerCase().replace(/ /g, '-')}`;
+
+    return <div ref={editorRef} className={`h-full w-full text-left bg-transparent ${themeClass}`} />;
 });

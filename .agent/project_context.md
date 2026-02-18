@@ -19,8 +19,13 @@
 ## Directory Structure
 
 - `src/`: Contains the React frontend source code.
-    - `App.tsx`: Main application component.
+    - `App.tsx`: Main application component with theme management, view modes, and file operations.
     - `main.tsx`: Entry point for React.
+    - `Editor.tsx`: CodeMirror 6 editor wrapper with theme switching and markdown formatting commands.
+    - `hybridPlugin.ts`: Custom CodeMirror plugin that renders styled markdown elements (headers, lists, images, tables, horizontal rules) inline.
+    - `components/`:
+        - `ContextSidebar.tsx`: Context-aware formatting toolbar that adapts based on cursor position.
+        - `Preview.tsx`: Full markdown preview component using ReactMarkdown with GFM support.
 - `src-tauri/`: Contains the Rust backend code and Tauri configuration.
     - `tauri.conf.json`: Main Tauri configuration file.
 - `public/`: Static assets.
