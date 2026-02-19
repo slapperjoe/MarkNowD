@@ -1,5 +1,5 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Manager, RunEvent};
 use std::env;
 use std::path::Path;
 use std::sync::Mutex;
@@ -19,6 +19,21 @@ fn get_launch_file(state: tauri::State<LaunchState>) -> Option<String> {
     file_path.take()
 }
 
+fn process_file_path(app_handle: &tauri::AppHandle, file_path: String) {
+    let path = Path::new(&file_path);
+    if let Some(ext) = path.extension() {
+        let ext_str = ext.to_str().unwrap_or("").to_lowercase();
+        if ext_str == "md" || ext_str == "markdown" {
+            // Store in state for get_launch_file
+            if let Some(state) = app_handle.try_state::<LaunchState>() {
+                *state.file_path.lock().unwrap() = Some(file_path.clone());
+            }
+            // Emit event for frontend
+            let _ = app_handle.emit("file-open", file_path);
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -30,28 +45,38 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![greet, get_launch_file])
         .setup(|app| {
-            // Check for file arguments passed via file association
+            // Check for file arguments passed via command line (Windows/Linux)
             let args: Vec<String> = env::args().collect();
             
             // Skip the first arg (exe path) and look for markdown files
             for arg in args.iter().skip(1) {
                 let path = Path::new(arg);
-                if let Some(ext) = path.extension() {
-                    let ext_str = ext.to_str().unwrap_or("").to_lowercase(); // Case insensitive
-                    if ext_str == "md" || ext_str == "markdown" {
-                        // Store it in state for the frontend to pick up
-                        if let Some(state) = app.try_state::<LaunchState>() {
-                            *state.file_path.lock().unwrap() = Some(arg.clone());
+                if path.exists() && path.is_file() {
+                    if let Some(ext) = path.extension() {
+                        let ext_str = ext.to_str().unwrap_or("").to_lowercase();
+                        if ext_str == "md" || ext_str == "markdown" {
+                            process_file_path(&app.handle(), arg.clone());
+                            break;
                         }
-                        // Also emit the event for good measure (if frontend is already watching)
-                        let _ = app.emit("file-open", arg.clone());
-                        break; // Only open the first file for now
                     }
                 }
             }
             
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            // Handle macOS file open events
+            if let RunEvent::Opened { urls } = event {
+                if let Some(url) = urls.first() {
+                    // Convert URL to file path
+                    if let Ok(file_path) = url.to_file_path() {
+                        if let Some(path_str) = file_path.to_str() {
+                            process_file_path(app_handle, path_str.to_string());
+                        }
+                    }
+                }
+            }
+        });
 }
