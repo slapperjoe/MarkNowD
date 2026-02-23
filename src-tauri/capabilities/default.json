@@ -12,9 +12,27 @@
     {
       "identifier": "fs:allow-read-text-file",
       "allow": [
-        {
-          "path": "**"
-        }
+        { "path": "$HOME/**" },
+        { "path": "$HOME/.*" },
+        { "path": "$HOME/.*/**" },
+        { "path": "$HOME/**/.*" },
+        { "path": "$HOME/**/.*/**" },
+        { "path": "/Volumes/**" },
+        { "path": "/Volumes/.*/**" },
+        { "path": "/Volumes/**/.*/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [
+        { "path": "$HOME/**" },
+        { "path": "$HOME/.*" },
+        { "path": "$HOME/.*/**" },
+        { "path": "$HOME/**/.*" },
+        { "path": "$HOME/**/.*/**" },
+        { "path": "/Volumes/**" },
+        { "path": "/Volumes/.*/**" },
+        { "path": "/Volumes/**/.*/**" }
       ]
     },
     "dialog:default",
