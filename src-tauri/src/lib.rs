@@ -67,10 +67,10 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
-            // Handle macOS file open events
-            if let RunEvent::Opened { urls } = event {
+            // Handle macOS file open events (e.g. double-click .md in Finder)
+            #[cfg(any(target_os = "macos", target_os = "ios"))]
+            if let RunEvent::Opened { urls } = &event {
                 if let Some(url) = urls.first() {
-                    // Convert URL to file path
                     if let Ok(file_path) = url.to_file_path() {
                         if let Some(path_str) = file_path.to_str() {
                             process_file_path(app_handle, path_str.to_string());
@@ -78,5 +78,6 @@ pub fn run() {
                     }
                 }
             }
+            let _ = event;
         });
 }

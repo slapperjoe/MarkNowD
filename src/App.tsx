@@ -1,10 +1,11 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { save, open } from '@tauri-apps/plugin-dialog';
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs';
 import { LayoutTemplate, FileCode, Eye, WrapText } from 'lucide-react';
+import { marked } from 'marked';
 import "./App.css";
 import { Editor, EditorRef } from "./Editor";
 import { ContextSidebar } from "./components/ContextSidebar";
@@ -56,6 +57,37 @@ const THEMES: Record<string, { bg: string; menuBg: string; text: string; menuHov
 
 type ViewMode = 'interactive' | 'raw' | 'markdown';
 
+function stripMarkdown(md: string): string {
+  return md
+    // Remove fenced code blocks (keep content)
+    .replace(/```[a-z]*\n?([\s\S]*?)```/g, '$1')
+    // Remove inline code backticks
+    .replace(/`([^`]+)`/g, '$1')
+    // Remove images
+    .replace(/!\[([^\]]*)\]\([^\)]*\)/g, '$1')
+    // Convert links to their text
+    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+    // Remove ATX headers
+    .replace(/^#{1,6}\s+/gm, '')
+    // Remove bold+italic, bold, italic (asterisk and underscore)
+    .replace(/\*\*\*(.+?)\*\*\*/g, '$1')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/___(.+?)___/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/_(.+?)_/g, '$1')
+    // Remove blockquotes
+    .replace(/^>\s?/gm, '')
+    // Remove horizontal rules
+    .replace(/^[-*_]{3,}\s*$/gm, '')
+    // Remove list markers (unordered and ordered)
+    .replace(/^[ \t]*[-*+]\s+/gm, '')
+    .replace(/^[ \t]*\d+\.\s+/gm, '')
+    // Collapse multiple blank lines
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function App() {
   const [filePath, setFilePath] = useState<string | null>(null);
   const [editorContent, setEditorContent] = useState<string>("# MarkNowD\n");
@@ -72,6 +104,7 @@ function App() {
   const [themeName, setThemeName] = useState(() => {
     return localStorage.getItem('theme') || "Dark";
   });
+  const [copyToast, setCopyToast] = useState<string | null>(null);
 
   const editorRef = useRef<EditorRef>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -234,6 +267,93 @@ function App() {
     setIsMenuOpen(false);
   };
 
+  const getSelectedText = useCallback((): string | null => {
+    if (viewMode === 'markdown') {
+      const sel = window.getSelection()?.toString();
+      return sel || null;
+    }
+    return editorRef.current?.getSelection() ?? null;
+  }, [viewMode]);
+
+  const showToast = useCallback((msg: string) => {
+    setCopyToast(msg);
+    setTimeout(() => setCopyToast(null), 2000);
+  }, []);
+
+  const handleCopyAsMarkdown = useCallback(async () => {
+    try {
+      const sel = getSelectedText();
+      const text = sel ?? editorContent;
+      await navigator.clipboard.writeText(text);
+      showToast(sel ? 'Selection copied as Markdown' : 'Copied as Markdown');
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+    setIsMenuOpen(false);
+  }, [getSelectedText, editorContent, showToast]);
+
+  const handleCopyAsText = useCallback(async () => {
+    try {
+      const sel = getSelectedText();
+      const text = stripMarkdown(sel ?? editorContent);
+      await navigator.clipboard.writeText(text);
+      showToast(sel ? 'Selection copied as plain text' : 'Copied as plain text');
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+    setIsMenuOpen(false);
+  }, [getSelectedText, editorContent, showToast]);
+
+  const handleCopyAsRichText = useCallback(async () => {
+    try {
+      let html: string;
+      let plainText: string;
+
+      if (viewMode === 'markdown') {
+        // Use DOM selection HTML when text is selected in the preview
+        const winSel = window.getSelection();
+        if (winSel && winSel.rangeCount > 0 && winSel.toString()) {
+          const container = document.createElement('div');
+          container.appendChild(winSel.getRangeAt(0).cloneContents());
+          html = container.innerHTML;
+          plainText = winSel.toString();
+        } else {
+          html = marked.parse(editorContent) as string;
+          plainText = stripMarkdown(editorContent);
+        }
+      } else {
+        const md = editorRef.current?.getSelection() ?? editorContent;
+        html = marked.parse(md) as string;
+        plainText = stripMarkdown(md);
+      }
+
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': new Blob([html], { type: 'text/html' }),
+          'text/plain': new Blob([plainText], { type: 'text/plain' }),
+        }),
+      ]);
+      const hadSel = viewMode === 'markdown'
+        ? !!(window.getSelection()?.toString())
+        : !!(editorRef.current?.getSelection());
+      showToast(hadSel ? 'Selection copied as Rich Text' : 'Copied as Rich Text');
+    } catch (err) {
+      console.error('Failed to copy as rich text:', err);
+    }
+    setIsMenuOpen(false);
+  }, [viewMode, editorContent, showToast]);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'C') {
+        e.preventDefault();
+        handleCopyAsMarkdown();
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [handleCopyAsMarkdown]);
+
   const handleInsertImage = async () => {
     try {
       const selected = await open({
@@ -332,6 +452,17 @@ function App() {
                 <button onClick={handleOpen} className={`text-left px-4 py-2 ${currentTheme.menuHover}`}>Open...</button>
                 <button onClick={handleSave} className={`text-left px-4 py-2 ${currentTheme.menuHover}`}>Save</button>
                 <button onClick={handleSaveAs} className={`text-left px-4 py-2 ${currentTheme.menuHover}`}>Save As...</button>
+                <div className={`border-t my-1 ${currentTheme.menuBorder}`}></div>
+                <button onClick={handleCopyAsMarkdown} className={`text-left px-4 py-2 ${currentTheme.menuHover} flex items-center justify-between`}>
+                  <span>Copy as Markdown</span>
+                  <span className="opacity-50 text-xs ml-4">⌃⇧C</span>
+                </button>
+                <button onClick={handleCopyAsText} className={`text-left px-4 py-2 ${currentTheme.menuHover}`}>
+                  Copy as Plain Text
+                </button>
+                <button onClick={handleCopyAsRichText} className={`text-left px-4 py-2 ${currentTheme.menuHover}`}>
+                  Copy as Rich Text
+                </button>
               </div>
             )}
           </div>
@@ -461,6 +592,13 @@ function App() {
                 viewMode={viewMode === 'interactive' ? 'interactive' : 'raw'}
                 wordWrap={wordWrap}
               />
+            </div>
+          )}
+          {/* Copy toast */}
+          {copyToast && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-md text-xs font-medium shadow-lg pointer-events-none select-none"
+              style={{ backgroundColor: currentTheme.menuBg, color: currentTheme.text, border: `1px solid`, borderColor: currentTheme.menuBorder }}>
+              {copyToast}
             </div>
           )}
         </div>

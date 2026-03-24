@@ -17,6 +17,7 @@ import { syntaxTree } from "@codemirror/language";
 export interface EditorRef {
     executeCommand: (cmd: string) => void;
     insertText: (text: string) => void;
+    getSelection: () => string | null;
 }
 
 interface EditorProps {
@@ -40,6 +41,13 @@ export const Editor = forwardRef<EditorRef, EditorProps>(({ doc, onChange, onCon
             if (!view) return;
             view.focus();
             insertTextAtCursor(view, text);
+        },
+        getSelection: () => {
+            const view = viewRef.current;
+            if (!view) return null;
+            const { from, to } = view.state.selection.main;
+            if (from === to) return null;
+            return view.state.sliceDoc(from, to);
         },
         executeCommand: (cmd: string) => {
             const view = viewRef.current;
